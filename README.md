@@ -5,30 +5,33 @@ A synthetic IT helpdesk assistant built as a hands-on learning project for LangC
 ## What the demo does
 
 - Answers supported IT questions using a small Markdown knowledge base and FAISS retrieval.
+- Uses Google Gemini for chat answer generation.
 - Looks up synthetic incident records from local JSON data.
 - Marks unresolved issues for simulated human escalation.
-- Uses a deterministic fallback for unsupported requests.
-- Provides starter evaluation data and documentation.
+- Handles greetings separately from unsupported requests.
+- Rejects requests for another person's credentials with a safe fallback.
+- Provides local and optional LangSmith workflow evaluation.
 
 All tickets and knowledge-base records are fictional. No real service desk or ticketing system is contacted.
 
 ## Architecture
 
-- **Chat model:** DeepSeek through its OpenAI-compatible API.
+- **Chat model:** Google Gemini `gemini-3.5-flash-lite` via `langchain-google-genai`.
+- **Chat API key:** Reused from the local Google ADK project configuration; stored only in this project's ignored `.env`.
 - **Embeddings:** `sentence-transformers/all-MiniLM-L6-v2`, executed locally on CPU.
 - **Vector store:** FAISS, built in memory when the first knowledge question is processed.
 - **Orchestration:** LangGraph state graph.
 - **LLM framework:** LangChain.
 - **Tracing/evaluation:** LangSmith integration (optional).
 
-The chat and embedding providers are independent. Ollama is not required for the default embedding configuration.
+The chat and embedding providers are independent. Gemini is used for answer generation; embeddings remain local and do not call Google's embedding API. Ollama is not required for the default configuration.
 
 ## Prerequisites
 
 - Windows 10/11
 - Python 3.14 (the current project environment uses Python 3.14)
 - Git
-- A DeepSeek API key for live answer generation
+- A Google AI Studio API key with access to the configured Gemini model
 
 ## Setup (PowerShell)
 
@@ -45,19 +48,12 @@ If the existing `.venv` is already present, activate it instead of recreating it
 
 ## Configuration
 
-Copy the safe template and add your own credentials:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-Edit `.env` and set the DeepSeek key:
+The project uses the Google AI Studio API key configured in the separate `Google_ADK\my_first_agent\.env` workspace. For a new machine, copy `.env.example` to `.env` and set:
 
 ```dotenv
-LLM_PROVIDER=deepseek
-DEEPSEEK_API_KEY=your_actual_deepseek_api_key
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-flash
+LLM_PROVIDER=google
+GOOGLE_API_KEY=your_google_ai_studio_api_key
+GOOGLE_MODEL=gemini-3.5-flash-lite
 ```
 
 The default local embedding settings are:
@@ -69,7 +65,7 @@ SENTENCE_TRANSFORMER_MODEL=sentence-transformers/all-MiniLM-L6-v2
 
 The MiniLM model is downloaded from Hugging Face on first use and then loaded locally. CPU execution is explicitly configured in the embedding factory. An internet connection is required for the initial model download.
 
-LangSmith tracing is optional. To enable it, set `LANGSMITH_TRACING=true` and provide `LANGSMITH_API_KEY`. Do not commit the real `.env` file or paste secrets into source code.
+LangSmith tracing/evaluation is optional. For the organization-scoped Service Key (`lsv2_sk_...`) used by this project, configure `LANGSMITH_TRACING=true`, `LANGSMITH_API_KEY`, `LANGSMITH_ORGANIZATION_ID`, `LANGSMITH_WORKSPACE_ID`, and `LANGSMITH_PROJECT` in `.env`. The application creates an explicitly scoped LangSmith client and supplies both organization and workspace headers so the root LangGraph run and nested Gemini LLM calls are traced to the intended workspace. Do not commit the real `.env` file or paste secrets into source code.
 
 ## Run
 
@@ -79,14 +75,26 @@ python -m src.main
 
 The first knowledge-base query splits the Markdown articles, embeds the chunks, and creates an in-memory FAISS index. The index is rebuilt on each new application process.
 
-## Validate
+## Validate and evaluate
 
 ```powershell
-python -m compileall -q src
-python -m pytest -q
+python -m compileall -q src tests evaluation
+python -m pytest -q tests
+python -m evaluation.evaluate
+
+# One live Gemini request + LangSmith root/nested trace verification
+python -m scripts.test_langsmith_tracing
 ```
 
-The current offline test suite contains three tests. Live DeepSeek generation should be validated separately with a configured API key.
+The local evaluation runs the 12 synthetic examples and reports intent accuracy, graph route accuracy, and retrieval hit@3 for cases routed through knowledge retrieval. It does not call Gemini. Escalation cases intentionally bypass retrieval.
+
+To upload the dataset and run the deterministic routing/retrieval experiment in LangSmith:
+
+```powershell
+python -m evaluation.evaluate --langsmith
+```
+
+This LangSmith experiment evaluates intent, route and MiniLM/FAISS retrieval; it does not invoke the chat model. Live Gemini answer generation is validated separately.
 
 ## Project layout
 
@@ -98,8 +106,9 @@ The current offline test suite contains three tests. Live DeepSeek generation sh
 - `data/escalation_policy.md`: simulated escalation policy.
 - `src/langchain_components/`: model/embedding factories, prompts, retriever and ticket tool.
 - `src/langgraph_workflow/`: graph state, nodes and conditional routing.
-- `evaluation/`: evaluation dataset loader and evaluation starter.
+- `evaluation/`: evaluation dataset loader and local/LangSmith evaluation runner.
 - `docs/`: architecture, data contract and learning plan.
+- `portfolio/`: project case study and a checklist for sanitized portfolio screenshots.
 - `PROJECT_PROGRESS.md`: action log, validation evidence and remaining work.
 
 ## Security and demo boundaries

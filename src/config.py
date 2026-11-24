@@ -15,8 +15,12 @@ load_dotenv(ROOT_DIR / ".env")
 
 @dataclass(frozen=True)
 class Settings:
-    # Chat model configuration
-    provider: str = os.getenv("LLM_PROVIDER", "deepseek").strip().lower()
+    # Google Gemini is the default chat provider for this project.
+    provider: str = os.getenv("LLM_PROVIDER", "google").strip().lower()
+    google_api_key: str = os.getenv("GOOGLE_API_KEY", "")
+    google_model: str = os.getenv("GOOGLE_MODEL", "gemini-3.5-flash-lite")
+
+    # Optional alternative chat providers.
     deepseek_api_key: str = os.getenv("DEEPSEEK_API_KEY", "")
     deepseek_base_url: str = os.getenv(
         "DEEPSEEK_BASE_URL", "https://api.deepseek.com"
@@ -43,9 +47,15 @@ class Settings:
     )
 
     temperature: float = float(os.getenv("TEMPERATURE", "0"))
+    langsmith_tracing: bool = os.getenv(
+        "LANGSMITH_TRACING", "false"
+    ).strip().lower() in {"1", "true", "yes", "on"}
     langsmith_project: str = os.getenv(
         "LANGSMITH_PROJECT", "ai-helpdesk-assistant"
     )
+    langsmith_api_key: str = os.getenv("LANGSMITH_API_KEY", "")
+    langsmith_workspace_id: str = os.getenv("LANGSMITH_WORKSPACE_ID", "")
+    langsmith_organization_id: str = os.getenv("LANGSMITH_ORGANIZATION_ID", "")
 
 
 settings = Settings()
@@ -53,18 +63,19 @@ settings = Settings()
 
 def validate_provider_config() -> None:
     """Validate chat and embedding provider configuration."""
-    if settings.provider == "deepseek" and (
-        not settings.deepseek_api_key
-        or settings.deepseek_api_key == "PASTE_YOUR_DEEPSEEK_API_KEY_HERE"
-    ):
+    if settings.provider == "google" and not settings.google_api_key:
         raise RuntimeError(
-            "DEEPSEEK_API_KEY is missing. Add your key to the project .env file."
+            "GOOGLE_API_KEY is missing. Copy the key into the project .env file."
+        )
+    if settings.provider == "deepseek" and not settings.deepseek_api_key:
+        raise RuntimeError(
+            "DEEPSEEK_API_KEY is missing from the project .env file."
         )
     if settings.provider == "openai" and not settings.openai_api_key:
         raise RuntimeError("OPENAI_API_KEY is missing from the project .env file.")
-    if settings.provider not in {"deepseek", "openai", "ollama"}:
+    if settings.provider not in {"google", "deepseek", "openai", "ollama"}:
         raise ValueError(
-            "LLM_PROVIDER must be 'deepseek', 'openai' or 'ollama'."
+            "LLM_PROVIDER must be 'google', 'deepseek', 'openai' or 'ollama'."
         )
 
     if settings.embedding_provider == "openai" and not settings.openai_api_key:

@@ -1,4 +1,4 @@
-"""Factories for chat models and embedding models."""
+"""Google Gemini and optional chat provider factories, plus local embeddings."""
 import os
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -11,8 +11,16 @@ def get_chat_model() -> BaseChatModel:
     """Return the configured chat model."""
     validate_provider_config()
 
+    if settings.provider == "google":
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        # This Gemini model uses fixed sampling defaults; omit temperature.
+        return ChatGoogleGenerativeAI(
+            model=settings.google_model,
+            google_api_key=settings.google_api_key,
+        )
+
     if settings.provider == "deepseek":
-        # DeepSeek exposes an OpenAI-compatible Chat Completions API.
         from langchain_openai import ChatOpenAI
 
         return ChatOpenAI(

@@ -104,3 +104,120 @@ The 17 warnings from the test run are deprecation warnings emitted by the instal
 ## 6. Publish-safety review note
 
 - A separate root-level `1.py` file was found outside the documented application structure. It contains a hard-coded credential-like value and was deliberately excluded from the Git index. It is still present locally and is not part of the initial project commit. Verify whether that value is a real API credential and rotate it if it is genuine. Do not publish that file or reuse the value.
+
+
+## 7. Follow-up implementation and validation — 2026-11-24
+
+| # | Action | Result | Status |
+|---:|---|---|---|
+| 24 | Added greeting intent | Added exact greeting matching for hi/hello/hey and common greetings, plus a dedicated greeting node and graph route | Done |
+| 25 | Expanded deterministic routing tests | Added tests for greeting, VPN routing, sensitive credential requests, ticket lookup and escalation | Done |
+| 26 | Added credential-disclosure guard | Requests for another employee's password/credentials now use a safe fallback instead of the password-help knowledge route | Done |
+| 27 | Tested live DeepSeek connectivity | Request reached DeepSeek, which returned HTTP 402 Insufficient Balance; API generation cannot be verified until account balance is available | Blocked by provider billing |
+| 28 | Tested real MiniLM + FAISS retrieval | VPN question returned three chunks; top two were from KB002 VPN troubleshooting | Pass |
+| 29 | Tested graph end-to-end with a stub chat model | Actual classifier, MiniLM/FAISS retrieval and LangGraph answer-generation chain executed; only chat-model response was stubbed | Pass |
+| 30 | Added local evaluation runner | Added per-case intent, route and retrieval@3 evaluation over the 12-case synthetic dataset | Done |
+| 31 | Added LangSmith evaluation mode | Added optional dataset creation/reuse and an experiment for deterministic routing + retrieval; it does not invoke DeepSeek | Implemented; not run because LANGSMITH_API_KEY is not configured |
+| 32 | Expanded automated tests | Latest run: **11 passed**, with 18 dependency deprecation warnings | Pass |
+| 33 | Ran local evaluation | Intent accuracy **12/12 (100%)**; route accuracy **12/12 (100%)**; retrieval hit@3 **5/5 (100%)** for cases that actually use the knowledge route | Pass |
+| 34 | Updated README | Documented greeting/security behavior, test commands, local evaluation and optional LangSmith evaluation | Done |
+
+### Current verification boundaries
+
+- The DeepSeek API endpoint was reached, but the response was HTTP 402 (Insufficient Balance). This proves the request reached the provider; it does not prove successful inference.
+- The real MiniLM embedding model and FAISS retrieval path passed on the VPN question.
+- The complete LangGraph knowledge path passed with a stubbed chat model. The actual DeepSeek-generated answer remains unverified.
+- The LangSmith evaluation runner is implemented. The local `.env` currently has no configured `LANGSMITH_API_KEY`, so remote dataset upload and experiment execution remain pending.
+- C09 is an escalation case and intentionally bypasses retrieval; it is excluded from the retrieval hit@3 denominator.
+- Latest automated validation: `compileall` passed; `pytest -q tests` reported 11 passed.
+- The current GitHub repository is public. Review the changed files and staged content before committing or pushing; do not stage the unrelated root-level `1.py` file.
+
+
+## 8. Chat provider migration to Google Gemini — 2026-11-24
+
+The project chat provider has been switched from DeepSeek to Google Gemini at the user's direction. The previous DeepSeek HTTP 402 result is retained above as historical troubleshooting evidence only; DeepSeek is no longer the configured provider.
+
+| # | Action | Result | Status |
+|---:|---|---|---|
+| 35 | Inspected Google_ADK workspace configuration | Confirmed the Google ADK agent environment has a configured `GOOGLE_API_KEY` and `GOOGLE_GENAI_USE_VERTEXAI=0`; workspace README identifies `gemini-3.5-flash-lite` as the selected working model | Done |
+| 36 | Reused Google API key | Copied the key locally from `Google_ADK\my_first_agent\.env` into this project's ignored `.env`; the key was not displayed or logged | Done |
+| 37 | Changed chat provider defaults | Set `LLM_PROVIDER=google` and `GOOGLE_MODEL=gemini-3.5-flash-lite` in the project environment and configuration | Done |
+| 38 | Added LangChain Google integration | Added `langchain-google-genai` to requirements and installed version 4.5.2 in the project virtual environment | Done |
+| 39 | Implemented Gemini chat model factory | Added `ChatGoogleGenerativeAI` using `GOOGLE_API_KEY`; local MiniLM embedding implementation remains unchanged | Done |
+| 40 | Removed old DeepSeek secret from project environment | Removed the `DEEPSEEK_API_KEY` line from the helpdesk project's local `.env`; no DeepSeek key is needed for the selected provider | Done |
+| 41 | Tested Google API connectivity | Live invocation of `gemini-3.5-flash-lite` returned the expected `GEMINI_CONNECTION_OK` response | Pass |
+| 42 | Tested full live VPN RAG path | Actual question passed through rule classifier, local MiniLM embeddings, FAISS top-3 retrieval and Google Gemini answer generation; received a grounded VPN procedure | Pass |
+| 43 | Updated project documentation | Updated README and architecture documentation for Gemini chat + local MiniLM/FAISS retrieval | Done |
+
+### Current active model configuration
+
+- Chat provider: `google`
+- Chat model: `gemini-3.5-flash-lite`
+- Integration: `langchain-google-genai` (installed version 4.5.2)
+- Credential variable: `GOOGLE_API_KEY` in local `.env` (ignored by Git)
+- Embedding provider: `sentence-transformers`
+- Embedding model: `sentence-transformers/all-MiniLM-L6-v2`
+- Vector store: FAISS, in-memory
+
+### Validation evidence
+
+- Direct Gemini API smoke test: passed.
+- Full VPN question → MiniLM → FAISS → Gemini answer: passed.
+- The live answer included VPN connection checks, approved gateway selection, corporate sign-in/MFA, escalation criteria and support-ticket diagnostic details.
+- The Google model reports that sampling temperature is fixed; the Gemini factory therefore omits the temperature parameter.
+- LangSmith remains optional and separately configured. The local environment still needs `LANGSMITH_API_KEY` before remote evaluation can be run.
+
+
+## 9. Fresh review and LangSmith Service Key tracing repair — 2026-11-24
+
+| # | Action | Result | Status |
+|---:|---|---|---|
+| 44 | Revisited live project state | Confirmed Gemini + MiniLM + FAISS + LangGraph implementation, 12 automated tests and local evaluation | Done |
+| 45 | Reproduced LangSmith 403 | Confirmed the Service Key can access organization metadata; the configured workspace UUID did not identify the visible Workspace 1 | Root cause identified |
+| 46 | Retrieved organization/workspace identifiers safely | Used authenticated LangSmith organization/workspace APIs; no API key value was printed | Done |
+| 47 | Verified Service Key role assignments | Workspace role resolves to WORKSPACE_ADMIN; organization role resolves to ORGANIZATION_USER | Sufficient for this tracing workflow |
+| 48 | Verified scoped LangSmith SDK authentication | Client with the correct workspace ID and X-Organization-Id header authenticated successfully; project listing succeeded | Pass |
+| 49 | Updated local .env | Corrected LANGSMITH_ORGANIZATION_ID and LANGSMITH_WORKSPACE_ID; API key unchanged; .env remains ignored by Git | Done |
+| 50 | Updated LangSmith client configuration | Added organization/workspace settings and explicit Client construction; tracing_v2_enabled now uses the scoped client for graph and nested model runs | Done |
+| 51 | Updated live trace verification script | Uses the same scoped client and retries transient trace-query failures while ingestion/indexing completes | Done |
+| 52 | Updated README and architecture docs | Documented organization-scoped Service Key headers and live trace verification command | Done |
+| 53 | Re-ran automated tests after code changes | 12 passed; only existing SDK/FAISS deprecation warnings remain | Pass |
+| 54 | Re-ran local evaluation | Intent 12/12, route 12/12, retrieval hit@3 5/5 | Pass |
+| 55 | Executed live Gemini RAG request | Gemini answered a VPN question using three retrieved MiniLM/FAISS documents | Pass |
+| 56 | Inspected LangSmith trace records | Confirmed helpdesk_conversation root runs and nested ChatGoogleGenerativeAI LLM runs are queryable in ai-helpdesk-assistant | Pass |
+
+### Current observability configuration
+
+- LangSmith authentication uses an organization-scoped Service Key.
+- The client sends X-Organization-Id and X-Tenant-Id (via the SDK workspace setting).
+- The graph uses the explicitly scoped LangSmith client through tracing_v2_enabled.
+- Expected trace hierarchy: helpdesk_conversation → classifier/router/retriever → prompt/chain → ChatGoogleGenerativeAI LLM.
+- The local .env remains excluded from Git.
+
+### Remaining verification
+
+- Live verification command passed after retry/limit correction: Service Key authentication, one real Gemini request, root LangGraph run and nested Gemini LLM run were all confirmed queryable.
+- In LangSmith, open Tracing Projects → ai-helpdesk-assistant and inspect a recent helpdesk_conversation trace.
+- No Git commit or push was performed. The unrelated root-level 1.py remains untracked and must stay excluded.
+
+
+## 10. Portfolio packaging and publication — 2026-11-24
+
+| # | Action | Result | Status |
+|---:|---|---|---|
+| 57 | Re-ran Python compilation | `compileall` completed successfully for `src`, `tests`, `evaluation` and `scripts` | Pass |
+| 58 | Re-ran automated tests | `pytest -q tests`: **12 passed**; 18 dependency deprecation warnings remain | Pass |
+| 59 | Re-ran local evaluation | Intent **12/12 (100%)**; route **12/12 (100%)**; retrieval hit@3 **5/5 (100%)** | Pass |
+| 60 | Re-ran live Gemini + LangSmith verification | Service Key authentication passed; real Gemini request completed; root `helpdesk_conversation` and nested LLM run were queryable in the configured LangSmith workspace | Pass |
+| 61 | Added portfolio case study | Created `portfolio/README.md` with problem, architecture, stack, evidence, run instructions, scope limitations and security guidance | Done |
+| 62 | Added portfolio evidence folder | Created `portfolio/screenshots/README.md` with a checklist for sanitized observability and validation screenshots | Done |
+| 63 | Checked patch formatting | `git diff --check` passed; only normal Windows LF/CRLF notices appeared | Pass |
+| 64 | Prepared explicit Git staging list | Excluded `.env` and unrelated root-level `1.py`; only intended application, documentation, scripts and portfolio files are eligible | Done |
+
+### Completion state
+
+- Gemini + local MiniLM/FAISS + LangGraph application is runnable locally.
+- Live LangSmith tracing is verified for a real Gemini-backed knowledge question.
+- Automated tests and local evaluation passed on 2026-11-24.
+- Portfolio case-study folder is created; sanitized screenshots can be added to `portfolio/screenshots/`.
+- Git commit and push are the remaining publication steps for this task. The unrelated root-level `1.py` must remain untracked and excluded.
