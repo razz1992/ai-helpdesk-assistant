@@ -119,3 +119,37 @@ This LangSmith experiment evaluates intent, route and MiniLM/FAISS retrieval; it
 - Ticket lookup uses only local synthetic JSON data.
 - Escalation is simulated; no real ticket or external notification is created.
 - The assistant must not invent ticket status or unsupported knowledge-base facts.
+
+
+## Persistent conversations (Module 1)
+
+The CLI now supports SQLite-backed LangGraph checkpoints and message history.
+
+```powershell
+python -m src.main
+```
+
+At startup, leave the conversation ID blank to create a new conversation, or
+paste a previously displayed ID to resume it. Keep the ID if you want to continue
+after closing and restarting the application. Checkpoints are stored locally in
+`data/conversations.sqlite`; the database is ignored by Git.
+
+The graph stores user and assistant messages using the `add_messages` reducer.
+The knowledge-answer prompt receives previous turns, and a small rule-based
+follow-up resolver links common follow-up phrases to the previous IT question.
+
+Validate the persistence behavior offline:
+
+```powershell
+python -m pytest -q tests
+```
+
+Run the live two-turn Gemini + SQLite + LangSmith integration check (uses the
+configured Gemini API and sends traces to the configured LangSmith project):
+
+```powershell
+python -m scripts.test_persistent_conversation
+```
+
+This is conversation checkpointing, not long-term semantic memory. The follow-up
+resolver is intentionally narrow and will be improved in later learning modules.

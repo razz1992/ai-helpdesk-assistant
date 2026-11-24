@@ -223,3 +223,35 @@ The project chat provider has been switched from DeepSeek to Google Gemini at th
 - Portfolio case-study folder is created; sanitized screenshots can be added to `portfolio/screenshots/`.
 - Git commit `240adf2` (`Add Gemini RAG and LangSmith observability`) was pushed successfully to `origin/main` on 2026-11-24.
 - Final working tree contains only the unrelated root-level `1.py` as untracked; it remains excluded from the commit and push.
+
+
+## 11. Persistent conversation memory with LangGraph SQLite checkpointer — 2026-11-24
+
+| # | Action | Result | Status |
+|---:|---|---|---|
+| 66 | Reviewed current graph and state | Confirmed one graph invocation per question, no checkpointer and no message history | Done |
+| 67 | Installed SQLite checkpoint integration | Installed `langgraph-checkpoint-sqlite 3.1.3`; added bounded dependency to requirements | Done |
+| 68 | Added checkpoint-capable graph factory | `build_graph(checkpointer=None)` now compiles with an optional saver | Done |
+| 69 | Added message history to shared state | Added `messages` with LangGraph `add_messages` reducer; user and assistant turns are appended | Done |
+| 70 | Added context-aware follow-up baseline | Common follow-up phrases are linked to the previous user question before knowledge retrieval | Done |
+| 71 | Updated knowledge prompt | Prior conversation messages are passed to the knowledge-answer chain | Done |
+| 72 | Updated CLI | New or existing conversation IDs are accepted; SQLite checkpoints persist in `data/conversations.sqlite` | Done |
+| 73 | Protected local checkpoint files | Added SQLite/DB file patterns to `.gitignore` | Done |
+| 74 | Added persistence tests | Added database close/reopen test and thread-isolation test | Done |
+| 75 | Ran compile and offline tests | Compilation passed; `pytest -q tests`: **14 passed**, 18 existing dependency deprecation warnings | Pass |
+| 76 | Added live observability integration test | Added two-turn Gemini + SQLite + LangSmith trace verification script | Done; execution pending |
+
+### Module 1 implementation notes
+
+- Checkpointing is keyed by `thread_id`; using a new ID isolates a new conversation.
+- The SQLite database stores graph checkpoints and message state; it is local runtime data and must not be committed.
+- LangSmith tracing continues to use the existing organization/workspace-scoped Service Key client. Each turn is a separate root run with conversation thread metadata.
+- The follow-up resolver is intentionally rule-based and narrow. It demonstrates contextual follow-up handling without claiming to be a general memory or coreference solution.
+- No API key, Service Key or `.env` value was added to source or documentation.
+- The unrelated root-level `1.py` remains untracked and excluded from all Git operations.
+
+
+| 77 | Reviewed live CLI restart experiment and LangSmith dashboard | Same conversation ID resumed after restart; dashboard showed 35 successful traces and zero failed traces | Confirmed by user |
+| 78 | Fixed natural-language next-step follow-up | Added "what should I try next?" variants and backward search for the latest substantive IT topic across earlier user turns | Done |
+| 79 | Added multi-turn regression coverage | Test covers VPN question → tried steps → next-step question | Done |
+| 80 | Re-ran test suite and whitespace validation | **16 passed**, 18 dependency warnings; `git diff --check` exit code 0 | Pass |

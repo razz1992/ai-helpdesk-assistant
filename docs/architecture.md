@@ -44,3 +44,48 @@ The current graph marks a conversation for simulated escalation. A later exercis
 - The in-memory vector store is rebuilt on startup.
 - Escalation is simulated, not an actual approval UI.
 - This is a learning scaffold, not a production helpdesk.
+
+
+## Persistent conversation memory — Module 1
+
+The graph can optionally compile with a LangGraph checkpointer. The CLI uses
+`SqliteSaver` and stores checkpoints in `data/conversations.sqlite`. That file is
+local runtime data and is excluded from Git.
+
+- `thread_id` identifies one conversation. Reusing it resumes the saved graph state.
+- A different `thread_id` starts an isolated conversation.
+- `HelpdeskState.messages` uses LangGraph's `add_messages` reducer to append
+  HumanMessage and AIMessage turns instead of replacing the list.
+- The graph captures the user turn before classification and appends the assistant
+  answer before ending the turn.
+- The knowledge-answer prompt receives earlier messages as conversation history.
+- A small deterministic follow-up resolver enriches common phrases such as
+  "I already tried the first two steps" with the previous user question before
+  retrieval. This is a learning baseline, not a general coreference model.
+- LangSmith receives the thread ID in run configuration and records each turn as
+  a separate `helpdesk_conversation` root run.
+
+The checkpointer persists graph state; it does not itself summarize history,
+perform semantic memory retrieval, or guarantee that every node uses history.
+Those are separate application design decisions.
+
+### Local validation
+
+```powershell
+python -m pytest -q tests
+python -m scripts.test_persistent_conversation
+```
+
+The persistence test closes and reopens the SQLite connection between turns,
+then verifies that the same thread resumes with four messages (two user and
+two assistant messages). The live integration script additionally makes two
+Gemini-backed turns and checks for both root runs and nested LLM runs in LangSmith.
+
+
+### Follow-up resolver refinement
+
+The resolver recognises natural next-step questions such as "What should I try next?"
+and searches backward through earlier user turns for the latest substantive IT topic.
+This matters when the conversation already contains an intermediate follow-up such as
+"I already tried the first two steps." It avoids treating that short follow-up as the
+original topic. Regression tests cover this multi-turn sequence.

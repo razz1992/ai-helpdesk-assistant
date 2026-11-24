@@ -1,6 +1,9 @@
 """Graph node functions. Each node receives state and returns state updates."""
 import re
+
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
+
 from src.langchain_components.llm import get_chat_model
 from src.langchain_components.prompts import KNOWLEDGE_ANSWER_PROMPT
 from src.langchain_components.retriever import get_retriever
@@ -13,11 +16,55 @@ GREETING_PATTERN = re.compile(
     r"(?: there)?[!.\s]*$",
     re.IGNORECASE,
 )
+FOLLOW_UP_PATTERN = re.compile(
+    r"\b(already tried|first two steps|those steps|that didn't work|"
+    r"that did not work|still not working|still doesn't work|"
+    r"still does not work|what next|what should i try next|"
+    r"what should i do next|what do i try next|same issue|it failed|"
+    r"not resolved)\b",
+    re.IGNORECASE,
+)
+
+
+def capture_user_message(state: HelpdeskState) -> dict:
+    """Append the current user turn to the reducer-managed message history."""
+    return {"messages": [HumanMessage(content=state["question"])]}
 
 
 def classify_query(state: HelpdeskState) -> dict:
-    """Rule-based baseline; replace with structured LLM classification later."""
+    """Rule-based baseline with simple conversational follow-up resolution."""
     question = state["question"].strip()
+    messages = state.get("messages", [])
+    previous_user_questions = [
+        str(message.content)
+        for message in messages[:-1]
+        if isinstance(message, HumanMessage)
+    ]
+
+    if FOLLOW_UP_PATTERN.search(question) and previous_user_questions:
+        # Find the latest substantive IT question, not merely the immediately
+        # preceding user turn (which may itself have been a short follow-up).
+        topic_terms = (
+            "vpn", "password", "laptop", "access", "email", "outlook",
+            "software", "install", "application", "account", "login",
+        )
+        previous_question = next(
+            (
+                item for item in reversed(previous_user_questions)
+                if any(term in item.lower() for term in topic_terms)
+            ),
+            None,
+        )
+        if previous_question:
+            contextual_question = (
+                f"Follow-up to the previous helpdesk question: {previous_question}\n"
+                f"Current follow-up: {question}"
+            )
+            return {
+                "intent": "knowledge_question",
+                "question": contextual_question,
+            }
+
     if GREETING_PATTERN.fullmatch(question):
         return {"intent": "greeting"}
     lower = question.lower()
@@ -61,8 +108,15 @@ def retrieve_knowledge(state: HelpdeskState) -> dict:
 def generate_knowledge_answer(state: HelpdeskState) -> dict:
     docs = state.get("retrieved_documents", [])
     context = "\n\n".join(doc.page_content for doc in docs)
+    history = state.get("messages", [])[:-1]
     chain = KNOWLEDGE_ANSWER_PROMPT | get_chat_model() | StrOutputParser()
-    return {"answer": chain.invoke({"question": state["question"], "context": context})}
+    return {
+        "answer": chain.invoke({
+            "question": state["question"],
+            "context": context,
+            "history": history,
+        })
+    }
 
 
 def lookup_ticket(state: HelpdeskState) -> dict:
@@ -103,3 +157,8 @@ def fallback_answer(state: HelpdeskState) -> dict:
         )}
     return {"answer": ("I can help with demo IT topics: passwords, VPN, laptop/access, "
                        "email, software installation and checking a demo ticket ID.")}
+
+
+def capture_assistant_message(state: HelpdeskState) -> dict:
+    """Append the assistant response so the next turn has complete history."""
+    return {"messages": [AIMessage(content=state.get("answer", ""))]}

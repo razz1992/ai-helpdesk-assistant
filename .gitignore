@@ -28,6 +28,9 @@ faiss_index/
 *.faiss
 *.pkl
 *.pickle
+*.sqlite
+*.sqlite3
+*.db
 
 # Logs and local traces
 logs/
@@ -40,3 +43,6 @@ logs/
 .DS_Store
 Thumbs.db
 RAG_Pipeline_Guide.pdf
+# SQLite runtime journal files
+*.sqlite-*
+*.db-*

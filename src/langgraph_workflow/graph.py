@@ -1,12 +1,13 @@
-"""Build and compile the helpdesk StateGraph."""
+"""Build, compile and invoke the helpdesk StateGraph."""
 from langchain_core.tracers.context import tracing_v2_enabled
 from langsmith import Client
 from langgraph.graph import END, START, StateGraph
 
 from src.config import settings
 from src.langgraph_workflow.nodes import (
-    classify_query, fallback_answer, generate_knowledge_answer,
-    greeting_answer, lookup_ticket, prepare_escalation, retrieve_knowledge,
+    capture_assistant_message, capture_user_message, classify_query,
+    fallback_answer, generate_knowledge_answer, greeting_answer, lookup_ticket,
+    prepare_escalation, retrieve_knowledge,
 )
 from src.langgraph_workflow.state import HelpdeskState
 
@@ -21,8 +22,10 @@ def route_by_intent(state: HelpdeskState) -> str:
     }.get(state.get("intent", "out_of_scope"), "fallback_answer")
 
 
-def build_graph():
+def build_graph(checkpointer=None):
+    """Compile the graph, optionally attaching a LangGraph checkpointer."""
     builder = StateGraph(HelpdeskState)
+    builder.add_node("capture_user_message", capture_user_message)
     builder.add_node("classify_query", classify_query)
     builder.add_node("greeting_answer", greeting_answer)
     builder.add_node("retrieve_knowledge", retrieve_knowledge)
@@ -30,7 +33,10 @@ def build_graph():
     builder.add_node("lookup_ticket", lookup_ticket)
     builder.add_node("prepare_escalation", prepare_escalation)
     builder.add_node("fallback_answer", fallback_answer)
-    builder.add_edge(START, "classify_query")
+    builder.add_node("capture_assistant_message", capture_assistant_message)
+
+    builder.add_edge(START, "capture_user_message")
+    builder.add_edge("capture_user_message", "classify_query")
     builder.add_conditional_edges("classify_query", route_by_intent, {
         "greeting_answer": "greeting_answer",
         "retrieve_knowledge": "retrieve_knowledge",
@@ -41,8 +47,9 @@ def build_graph():
     builder.add_edge("retrieve_knowledge", "generate_knowledge_answer")
     for node in ("greeting_answer", "generate_knowledge_answer", "lookup_ticket",
                  "prepare_escalation", "fallback_answer"):
-        builder.add_edge(node, END)
-    return builder.compile()
+        builder.add_edge(node, "capture_assistant_message")
+    builder.add_edge("capture_assistant_message", END)
+    return builder.compile(checkpointer=checkpointer)
 
 
 def _build_langsmith_client() -> Client:
@@ -59,7 +66,6 @@ def _build_langsmith_client() -> Client:
             "LangSmith tracing is enabled but these settings are missing: "
             + ", ".join(missing)
         )
-
     return Client(
         api_key=settings.langsmith_api_key,
         workspace_id=settings.langsmith_workspace_id,
@@ -67,12 +73,18 @@ def _build_langsmith_client() -> Client:
     )
 
 
-def run_helpdesk(question: str) -> HelpdeskState:
-    """Run one conversation turn and trace the graph plus nested LLM calls."""
+def run_helpdesk(
+    question: str,
+    *,
+    thread_id: str | None = None,
+    graph=None,
+) -> HelpdeskState:
+    """Run one turn; a stable thread_id resumes a checkpointed conversation."""
     tags = [
         "ai-helpdesk-assistant",
         "langgraph",
         f"llm-provider:{settings.provider}",
+        "persistent-conversation" if thread_id else "single-turn",
     ]
     metadata = {
         "llm_provider": settings.provider,
@@ -92,18 +104,20 @@ def run_helpdesk(question: str) -> HelpdeskState:
         "tags": tags,
         "metadata": metadata,
     }
-    graph = build_graph()
+    if thread_id:
+        run_config["configurable"] = {"thread_id": thread_id}
+        metadata["conversation_thread_id"] = thread_id
+
+    compiled_graph = graph or build_graph()
     initial_state = {"question": question, "errors": []}
 
     if not settings.langsmith_tracing:
-        return graph.invoke(initial_state, config=run_config)
+        return compiled_graph.invoke(initial_state, config=run_config)
 
-    # Pass an explicitly scoped client so org-scoped Service Keys send both
-    # X-Organization-Id and X-Tenant-Id on trace and query requests.
     client = _build_langsmith_client()
     with tracing_v2_enabled(
         project_name=settings.langsmith_project,
         tags=tags,
         client=client,
     ):
-        return graph.invoke(initial_state, config=run_config)
+        return compiled_graph.invoke(initial_state, config=run_config)
