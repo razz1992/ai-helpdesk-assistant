@@ -255,3 +255,24 @@ The project chat provider has been switched from DeepSeek to Google Gemini at th
 | 78 | Fixed natural-language next-step follow-up | Added "what should I try next?" variants and backward search for the latest substantive IT topic across earlier user turns | Done |
 | 79 | Added multi-turn regression coverage | Test covers VPN question → tried steps → next-step question | Done |
 | 80 | Re-ran test suite and whitespace validation | **16 passed**, 18 dependency warnings; `git diff --check` exit code 0 | Pass |
+
+
+## 12. Human-in-the-Loop approval with LangGraph interrupts — 2026-11-24
+
+| # | Action | Result | Status |
+|---:|---|---|---|
+| 81 | Reviewed Module 1 graph and SQLite checkpointer | Reused existing persistent thread/checkpoint architecture | Done |
+| 82 | Added escalation approval interrupt | New `request_human_approval` node pauses with a structured interrupt payload | Done |
+| 83 | Added approval decision state | Added `human_approval` and `approval_comment` to HelpdeskState | Done |
+| 84 | Added conditional approval routing | Approved → simulated escalation; rejected → rejection response | Done |
+| 85 | Added resumable invocation | `run_helpdesk` accepts a resume decision and invokes `Command(resume=...)` with the existing thread config | Done |
+| 86 | Updated CLI | Displays approval context and accepts y/n plus optional comment | Done |
+| 87 | Added SQLite interrupt/resume tests | Both approval and rejection paths verify paused checkpoint, resume and final state | Done |
+| 88 | Ran regression suite | **18 passed**, 18 dependency warnings | Pass |
+
+### Module 2 boundaries
+
+- Approval is a local interactive CLI simulation; no real ticket or external side effect occurs.
+- The interrupt node performs no side effects before calling `interrupt()`, because LangGraph re-enters the node on resume.
+- The same SQLite `thread_id` is used to resume the paused graph execution.
+- LangSmith tracing remains enabled through the existing workspace-scoped Service Key integration.

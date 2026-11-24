@@ -89,3 +89,49 @@ and searches backward through earlier user turns for the latest substantive IT t
 This matters when the conversation already contains an intermediate follow-up such as
 "I already tried the first two steps." It avoids treating that short follow-up as the
 original topic. Regression tests cover this multi-turn sequence.
+
+
+## Human-in-the-loop approval — Module 2
+
+Escalation requests now enter the `request_human_approval` node. The node calls
+LangGraph `interrupt()` with a structured payload containing the request, reason
+and approval prompt. The graph pauses and the SQLite checkpointer persists its
+state for the current `thread_id`.
+
+The CLI reads the interrupt payload, asks for approval or rejection, and resumes
+the same graph execution using `Command(resume=decision)` and the same
+`thread_id`. A conditional edge routes the decision:
+
+- Approved → `prepare_escalation` → simulated escalation response.
+- Rejected → `reject_escalation` → no escalation action; user can continue support.
+
+The approval decision and optional comment are stored in graph state. The
+interrupt node has no side effects before `interrupt()`, because LangGraph
+re-enters the node when the execution resumes.
+
+This is a local CLI approval demonstration. It does not create a real ticket,
+send notifications, or integrate with an external ITSM system. The same
+organization/workspace-scoped LangSmith tracing configuration is used for the
+initial pause and resume invocation.
+
+### Manual experiment
+
+```powershell
+python -m src.main
+```
+
+Enter a new or existing conversation ID, then ask:
+`Please escalate this unresolved issue to a human.`
+
+At the approval prompt, test both `y` and `n`. Inspect the corresponding
+thread state and the `request_human_approval` node in LangSmith.
+
+### Automated coverage
+
+```powershell
+python -m pytest -q tests
+```
+
+Tests assert that the graph pauses at the approval node, exposes the interrupt
+payload, persists the paused state in SQLite, and resumes to the correct
+approved or rejected branch with the same thread ID.

@@ -13,6 +13,8 @@ class HelpdeskState(TypedDict, total=False):
     ticket_record: dict[str, Any] | None
     answer: str
     needs_human_review: bool
+    human_approval: bool
+    approval_comment: str
     escalation_reason: str | None
     errors: list[str]
     # add_messages appends new turns while preserving prior conversation messages.

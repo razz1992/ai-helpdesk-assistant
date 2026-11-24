@@ -119,3 +119,60 @@ def test_next_step_follow_up_skips_intermediate_short_follow_up_turn():
     update = classify_query(state)
     assert update["intent"] == "knowledge_question"
     assert "My VPN is not working." in update["question"]
+
+
+import pytest
+from langgraph.types import Command
+
+
+@pytest.mark.parametrize(
+    ("decision", "expected_approval", "expected_text"),
+    [
+        (
+            {"approved": True, "comment": "Approved for human support."},
+            True,
+            "Escalation approved",
+        ),
+        (
+            {"approved": False, "comment": "Please continue troubleshooting."},
+            False,
+            "Escalation was not approved",
+        ),
+    ],
+)
+def test_human_approval_interrupt_pauses_and_resumes_with_sqlite(
+    tmp_path: Path, decision: dict, expected_approval: bool, expected_text: str
+):
+    database = tmp_path / "human-approval.sqlite"
+    thread_id = f"approval-{expected_approval}"
+    config = {"configurable": {"thread_id": thread_id}}
+
+    with SqliteSaver.from_conn_string(str(database)) as checkpointer:
+        graph = build_graph(checkpointer=checkpointer)
+
+        paused = graph.invoke(
+            {"question": "Please escalate this issue to a human.", "errors": []},
+            config=config,
+        )
+
+        # The graph must stop at interrupt instead of executing either outcome.
+        assert "__interrupt__" in paused
+        interrupt_payload = paused["__interrupt__"][0].value
+        assert interrupt_payload["kind"] == "escalation_approval"
+        assert "human support" in interrupt_payload["reason"].lower()
+
+        snapshot = graph.get_state(config)
+        assert snapshot.next == ("request_human_approval",)
+        assert len(snapshot.values.get("messages", [])) == 1
+
+        # Resume the exact paused graph execution using the same thread ID.
+        completed = graph.invoke(Command(resume=decision), config=config)
+
+        assert completed["human_approval"] is expected_approval
+        assert completed["needs_human_review"] is expected_approval
+        assert expected_text in completed["answer"]
+        assert len(completed["messages"]) == 2
+
+        final_snapshot = graph.get_state(config)
+        assert final_snapshot.next == ()
+        assert final_snapshot.values["human_approval"] is expected_approval

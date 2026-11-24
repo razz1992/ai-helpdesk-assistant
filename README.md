@@ -153,3 +153,21 @@ python -m scripts.test_persistent_conversation
 
 This is conversation checkpointing, not long-term semantic memory. The follow-up
 resolver is intentionally narrow and will be improved in later learning modules.
+
+
+## Human-in-the-loop approval (Module 2)
+
+Escalation requests now pause at a LangGraph `interrupt()` node and wait for a
+human decision in the CLI. The decision resumes the same SQLite-backed
+conversation using `Command(resume=...)` and the original conversation ID.
+
+- Approve (`y`): continue to the simulated escalation response.
+- Reject (`n`): return a rejection response without taking an escalation action.
+
+Run `python -m src.main` and enter:
+`Please escalate this unresolved issue to a human.`
+
+Try both approval and rejection in separate conversations. This is a learning
+simulation only; it does not create an actual helpdesk ticket or notify a team.
+
+Run the regression tests with `python -m pytest -q tests`.

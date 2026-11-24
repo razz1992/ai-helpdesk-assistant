@@ -3,6 +3,7 @@ import re
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
+from langgraph.types import interrupt
 
 from src.langchain_components.llm import get_chat_model
 from src.langchain_components.prompts import KNOWLEDGE_ANSWER_PROMPT
@@ -42,8 +43,6 @@ def classify_query(state: HelpdeskState) -> dict:
     ]
 
     if FOLLOW_UP_PATTERN.search(question) and previous_user_questions:
-        # Find the latest substantive IT question, not merely the immediately
-        # preceding user turn (which may itself have been a short follow-up).
         topic_terms = (
             "vpn", "password", "laptop", "access", "email", "outlook",
             "software", "install", "application", "account", "login",
@@ -60,15 +59,11 @@ def classify_query(state: HelpdeskState) -> dict:
                 f"Follow-up to the previous helpdesk question: {previous_question}\n"
                 f"Current follow-up: {question}"
             )
-            return {
-                "intent": "knowledge_question",
-                "question": contextual_question,
-            }
+            return {"intent": "knowledge_question", "question": contextual_question}
 
     if GREETING_PATTERN.fullmatch(question):
         return {"intent": "greeting"}
     lower = question.lower()
-    # Do not treat requests for another person's credentials as routine IT help.
     if (
         any(term in lower for term in ("password", "credential", "login", "secret"))
         and any(term in lower for term in (
@@ -80,13 +75,15 @@ def classify_query(state: HelpdeskState) -> dict:
     match = TICKET_PATTERN.search(question)
     if match:
         return {"intent": "ticket_status", "ticket_id": match.group(0).upper()}
-    if any(x in lower for x in ("human", "person", "escalate", "still cannot",
-                                "still can't", "unresolved", "blocking my work",
-                                "cannot work", "can't work")):
+    if any(x in lower for x in (
+        "human", "person", "escalate", "still cannot", "still can't",
+        "unresolved", "blocking my work", "cannot work", "can't work",
+    )):
         return {"intent": "escalation_request"}
-    if any(x in lower for x in ("password", "vpn", "laptop", "access", "email",
-                                "outlook", "software", "install", "application",
-                                "account", "login")):
+    if any(x in lower for x in (
+        "password", "vpn", "laptop", "access", "email", "outlook",
+        "software", "install", "application", "account", "login",
+    )):
         return {"intent": "knowledge_question"}
     return {"intent": "out_of_scope"}
 
@@ -123,20 +120,63 @@ def lookup_ticket(state: HelpdeskState) -> dict:
     ticket_id = state.get("ticket_id") or ""
     record = lookup_ticket_record(ticket_id)
     if record is None:
-        return {"ticket_record": None,
-                "answer": f"Ticket {ticket_id} was not found in the demo dataset. Please verify the ID."}
-    return {"ticket_record": {"ticket_id": ticket_id, **record},
-            "answer": (f"Ticket {ticket_id}: {record['status']}. "
-                       f"Assigned team: {record['assigned_team']}. "
-                       f"Priority: {record['priority']}. Summary: {record['summary']}.")}
+        return {
+            "ticket_record": None,
+            "answer": f"Ticket {ticket_id} was not found in the demo dataset. Please verify the ID.",
+        }
+    return {
+        "ticket_record": {"ticket_id": ticket_id, **record},
+        "answer": (
+            f"Ticket {ticket_id}: {record['status']}. "
+            f"Assigned team: {record['assigned_team']}. "
+            f"Priority: {record['priority']}. Summary: {record['summary']}."
+        ),
+    }
+
+
+def request_human_approval(state: HelpdeskState) -> dict:
+    """Pause execution until a human approves or rejects the simulated escalation.
+
+    Keep interrupt() before side effects: LangGraph re-enters this node when resumed.
+    """
+    decision = interrupt({
+        "kind": "escalation_approval",
+        "question": state.get("question", ""),
+        "reason": (
+            "The user requested human support or reports an unresolved/work-blocking issue."
+        ),
+        "message": "Approve this simulated escalation?",
+    })
+    approved = bool(decision.get("approved")) if isinstance(decision, dict) else False
+    return {
+        "human_approval": approved,
+        "approval_comment": (
+            str(decision.get("comment", "")) if isinstance(decision, dict) else ""
+        ),
+    }
+
+
+def route_after_approval(state: HelpdeskState) -> str:
+    return "approved" if state.get("human_approval") else "rejected"
 
 
 def prepare_escalation(state: HelpdeskState) -> dict:
     return {
         "needs_human_review": True,
-        "escalation_reason": "User requested human support or reports an unresolved/work-blocking issue. This is simulated.",
-        "answer": ("This needs review by a human IT support representative. "
-                   "This demo marks the conversation for simulated escalation; no real ticket is created.")
+        "answer": (
+            "Escalation approved. This demo marks the conversation for simulated "
+            "human support; no real ticket is created."
+        ),
+    }
+
+
+def reject_escalation(state: HelpdeskState) -> dict:
+    return {
+        "needs_human_review": False,
+        "answer": (
+            "Escalation was not approved. No ticket or external action was created. "
+            "You can continue troubleshooting or request another review."
+        ),
     }
 
 
@@ -155,8 +195,10 @@ def fallback_answer(state: HelpdeskState) -> dict:
             "Use the approved identity and access-management process for authorized access, "
             "and never share passwords or MFA codes."
         )}
-    return {"answer": ("I can help with demo IT topics: passwords, VPN, laptop/access, "
-                       "email, software installation and checking a demo ticket ID.")}
+    return {"answer": (
+        "I can help with demo IT topics: passwords, VPN, laptop/access, "
+        "email, software installation and checking a demo ticket ID."
+    )}
 
 
 def capture_assistant_message(state: HelpdeskState) -> dict:

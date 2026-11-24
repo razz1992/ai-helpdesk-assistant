@@ -65,10 +65,20 @@ def test_unknown_ticket_is_not_invented():
     assert lookup_ticket_record("INC9999") is None
 
 
-def test_escalation_marks_human_review():
-    result = run_helpdesk("Please escalate this unresolved issue to a human")
-    assert result["intent"] == "escalation_request"
-    assert result["needs_human_review"] is True
+def test_escalation_pauses_for_human_review(tmp_path):
+    from langgraph.checkpoint.sqlite import SqliteSaver
+    from src.langgraph_workflow.graph import build_graph
+
+    config = {"configurable": {"thread_id": "legacy-escalation-test"}}
+    with SqliteSaver.from_conn_string(str(tmp_path / "approval.sqlite")) as checkpointer:
+        graph = build_graph(checkpointer=checkpointer)
+        result = graph.invoke(
+            {"question": "Please escalate this unresolved issue to a human", "errors": []},
+            config=config,
+        )
+        assert result["intent"] == "escalation_request"
+        assert "__interrupt__" in result
+        assert result["__interrupt__"][0].value["kind"] == "escalation_approval"
 
 
 def test_ticket_graph_returns_ticket_record():
