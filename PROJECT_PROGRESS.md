@@ -213,6 +213,7 @@ The project chat provider has been switched from DeepSeek to Google Gemini at th
 | 62 | Added portfolio evidence folder | Created `portfolio/screenshots/README.md` with a checklist for sanitized observability and validation screenshots | Done |
 | 63 | Checked patch formatting | `git diff --check` passed; only normal Windows LF/CRLF notices appeared | Pass |
 | 64 | Prepared explicit Git staging list | Excluded `.env` and unrelated root-level `1.py`; only intended application, documentation, scripts and portfolio files are eligible | Done |
+| 65 | Committed and pushed project changes | Commit `240adf2` (`Add Gemini RAG and LangSmith observability`) pushed to `origin/main`; remote HEAD verified against the commit | Pass |
 
 ### Completion state
 
@@ -220,4 +221,5 @@ The project chat provider has been switched from DeepSeek to Google Gemini at th
 - Live LangSmith tracing is verified for a real Gemini-backed knowledge question.
 - Automated tests and local evaluation passed on 2026-11-24.
 - Portfolio case-study folder is created; sanitized screenshots can be added to `portfolio/screenshots/`.
-- Git commit and push are the remaining publication steps for this task. The unrelated root-level `1.py` must remain untracked and excluded.
+- Git commit `240adf2` (`Add Gemini RAG and LangSmith observability`) was pushed successfully to `origin/main` on 2026-11-24.
+- Final working tree contains only the unrelated root-level `1.py` as untracked; it remains excluded from the commit and push.
