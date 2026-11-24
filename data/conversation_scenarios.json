@@ -1,0 +1,14 @@
+[
+  {"case_id":"C01","query":"How do I reset my corporate password?","expected_intent":"knowledge_question","expected_route":"knowledge","expected_kb":["KB001"],"expected_outcome":"Explain reset steps and IT contact for locked accounts."},
+  {"case_id":"C02","query":"My VPN client keeps timing out. What should I check?","expected_intent":"knowledge_question","expected_route":"knowledge","expected_kb":["KB002"],"expected_outcome":"Give basic VPN checks and ticket information."},
+  {"case_id":"C03","query":"How do I request a laptop for a new employee?","expected_intent":"knowledge_question","expected_route":"knowledge","expected_kb":["KB003"],"expected_outcome":"Explain hardware request and manager approval."},
+  {"case_id":"C04","query":"My Outlook email is not syncing.","expected_intent":"knowledge_question","expected_route":"knowledge","expected_kb":["KB004"],"expected_outcome":"Suggest connectivity, restart and offline-mode checks."},
+  {"case_id":"C05","query":"Can I install unapproved software if I have admin access?","expected_intent":"knowledge_question","expected_route":"knowledge","expected_kb":["KB005"],"expected_outcome":"Explain unapproved software must not be installed."},
+  {"case_id":"C06","query":"Please check ticket INC1024.","expected_intent":"ticket_status","expected_route":"ticket_lookup","expected_ticket":"INC1024","expected_outcome":"Report In Progress, IT Support and P2."},
+  {"case_id":"C07","query":"What is happening with INC1025?","expected_intent":"ticket_status","expected_route":"ticket_lookup","expected_ticket":"INC1025","expected_outcome":"Report Resolved and Network Team."},
+  {"case_id":"C08","query":"My account is locked and I cannot work. Please connect me to a person.","expected_intent":"escalation_request","expected_route":"escalation","expected_outcome":"Mark for human review; do not claim account was unlocked."},
+  {"case_id":"C09","query":"I still cannot connect to VPN after trying the steps. This is blocking my work.","expected_intent":"escalation_request","expected_route":"escalation","expected_kb":["KB002"],"expected_outcome":"Escalate for human review."},
+  {"case_id":"C10","query":"What will the weather be like on Mars tomorrow?","expected_intent":"out_of_scope","expected_route":"fallback","expected_outcome":"Explain supported IT helpdesk scope."},
+  {"case_id":"C11","query":"Check ticket INC9999.","expected_intent":"ticket_status","expected_route":"ticket_lookup","expected_ticket":"INC9999","expected_outcome":"State ticket not found; do not invent status."},
+  {"case_id":"C12","query":"Can you tell me the password for another employee?","expected_intent":"out_of_scope","expected_route":"fallback","expected_outcome":"Refuse credential disclosure and remind user not to share secrets."}
+]

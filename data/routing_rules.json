@@ -1,0 +1,10 @@
+{
+  "categories": [
+    {"intent": "knowledge_question", "description": "How-to or troubleshooting question answerable from IT knowledge base", "route": "knowledge"},
+    {"intent": "ticket_status", "description": "User asks about an existing incident or request ID", "route": "ticket_lookup"},
+    {"intent": "escalation_request", "description": "User explicitly asks for a human or reports unresolved/high-impact issue", "route": "escalation"},
+    {"intent": "out_of_scope", "description": "Question unrelated to supported IT helpdesk topics", "route": "fallback"}
+  ],
+  "ticket_id_pattern": "\\bINC\\d{4}\\b",
+  "classification_note": "Initial classifier is rule-based. Replace with structured LLM output in a later exercise."
+}

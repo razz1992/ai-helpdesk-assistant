@@ -1,0 +1,8 @@
+{
+  "INC1024": {"status": "In Progress", "assigned_team": "IT Support", "priority": "P2", "summary": "VPN disconnects intermittently", "last_update": "2026-11-23T14:20:00+05:30"},
+  "INC1025": {"status": "Resolved", "assigned_team": "Network Team", "priority": "P3", "summary": "Unable to connect to corporate VPN", "last_update": "2026-11-22T17:10:00+05:30"},
+  "INC1026": {"status": "Open", "assigned_team": "Endpoint Support", "priority": "P3", "summary": "Email is not synchronizing", "last_update": "2026-11-24T08:45:00+05:30"},
+  "INC1027": {"status": "Pending Approval", "assigned_team": "Access Management", "priority": "P2", "summary": "Request for restricted application access", "last_update": "2026-11-23T11:00:00+05:30"},
+  "INC1028": {"status": "Closed", "assigned_team": "Service Desk", "priority": "P4", "summary": "Password reset assistance", "last_update": "2026-11-19T16:30:00+05:30"},
+  "INC1029": {"status": "On Hold", "assigned_team": "Software Services", "priority": "P3", "summary": "Software installation waiting for licence", "last_update": "2026-11-23T09:15:00+05:30"}
+}
