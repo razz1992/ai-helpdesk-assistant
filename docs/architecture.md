@@ -135,3 +135,10 @@ python -m pytest -q tests
 Tests assert that the graph pauses at the approval node, exposes the interrupt
 payload, persists the paused state in SQLite, and resumes to the correct
 approved or rejected branch with the same thread ID.
+
+
+## Answer-quality evaluation matrix — Module 3
+
+The answer-quality evaluation runner is separate from the deterministic routing evaluation. It uses a versioned reference dataset and reports five independent 1–5 LLM-as-judge dimensions: answer correctness, observable reasoning quality, groundedness, completeness and safety. The judge evaluates the answer's observable decisions and evidence use; it does not request hidden chain-of-thought.
+
+Retrieval remains deterministic and is reported separately as precision@3, recall@3 and hit@3 against expected KB document IDs. The current five-example dataset is a smoke-test baseline, not a statistically representative benchmark. The configured answer model also acts as judge in this iteration; model/judge independence and human calibration are future improvements.

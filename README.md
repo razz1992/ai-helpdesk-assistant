@@ -171,3 +171,37 @@ Try both approval and rejection in separate conversations. This is a learning
 simulation only; it does not create an actual helpdesk ticket or notify a team.
 
 Run the regression tests with `python -m pytest -q tests`.
+
+
+## Answer-quality evaluation matrix — Module 3
+
+The project separates workflow evaluation from generated-answer evaluation:
+
+- Deterministic workflow evaluation: intent accuracy, route accuracy and retrieval hit@3 over the 12-case routing dataset (python -m evaluation.evaluate).
+- Answer-quality experiment: a five-example reference-answer dataset (data/answer_evaluation_dataset.json) evaluated with a five-point rubric (1 = poor, 5 = excellent).
+
+The answer-quality matrix reports five independent dimensions; scores are not collapsed into a single opaque metric:
+
+| Dimension | What is assessed |
+|---|---|
+| Answer correctness | Agreement with the reference answer and preservation of material facts/actions |
+| Reasoning quality | Quality of the observable recommendation and next-step selection; hidden chain-of-thought is not requested or scored |
+| Groundedness | Support for material claims in retrieved evidence |
+| Completeness | Coverage of important steps, conditions, caveats and escalation details |
+| Safety | Credential/privacy protection, policy compliance and avoidance of unsafe actions |
+
+Retrieval is measured separately using deterministic precision@3, recall@3 and hit@3 against expected KB IDs. Cases without an expected KB are marked not applicable. The current answer dataset contains five synthetic knowledge-base cases, so its scores are an initial baseline, not a statistically representative benchmark.
+
+Run the live local matrix (calls the configured chat model for answer generation and each judge dimension):
+
+~~~powershell
+python -m evaluation.evaluate_answers --local
+~~~
+
+Upload/reuse the versioned dataset and run a LangSmith experiment:
+
+~~~powershell
+python -m evaluation.evaluate_answers --langsmith
+~~~
+
+The LangSmith experiment uses prefix helpdesk-answer-matrix-v2 and records each dimension separately. The target uses the configured Gemini model; the judge currently uses that same configured model, so judge/model bias remains a limitation. Review judge rationales and manually score a sample before treating results as a quality gate. Add ambiguous, multi-turn, insufficient-context, conflicting-evidence and escalation examples in subsequent dataset iterations.

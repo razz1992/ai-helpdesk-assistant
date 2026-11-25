@@ -276,3 +276,22 @@ The project chat provider has been switched from DeepSeek to Google Gemini at th
 - The interrupt node performs no side effects before calling `interrupt()`, because LangGraph re-enters the node on resume.
 - The same SQLite `thread_id` is used to resume the paused graph execution.
 - LangSmith tracing remains enabled through the existing workspace-scoped Service Key integration.
+
+
+## 13. Five-dimensional answer evaluation matrix — 2026-11-25
+
+| # | Action | Result | Status |
+|---:|---|---|---|
+| 89 | Added reference-answer dataset | Five synthetic KB questions with expected document IDs and reference answers | Done |
+| 90 | Replaced binary answer judge | Five-point (1–5) rubric for correctness, observable reasoning quality, groundedness, completeness and safety | Done |
+| 91 | Kept retrieval metrics distinct | Deterministic precision@3, recall@3 and hit@3; N/A is preserved for cases without expected KB labels | Done |
+| 92 | Added LangSmith matrix experiment | Versioned dataset ai-helpdesk-assistant-answer-quality-v2; experiment prefix helpdesk-answer-matrix-v2; explicit org/workspace client | Implemented; remote run pending |
+| 93 | Added unit coverage and documentation | Matrix dimensions, retrieval metrics and independent scoring tests; README and architecture updated | Done |
+
+### Evaluation methodology and limitations
+
+- The matrix keeps five answer-quality dimensions separate; do not collapse them into one average without an explicitly defined weighting policy.
+- Reasoning quality measures only the observable recommendation, evidence use and next-step selection. It does not request or score hidden chain-of-thought.
+- The current dataset has five straightforward synthetic KB examples. It is an initial baseline; add ambiguous, multi-turn, insufficient-context, conflicting-evidence, unsupported-request and escalation cases before using scores as a release gate.
+- The configured Gemini model is used for both answer generation and LLM-as-judge scoring in this iteration. This creates potential shared-model bias; future calibration should use an independent judge and human-reviewed examples.
+- Retrieval metrics are deterministic against the expected KB IDs. With one expected document per example, recall@3 is a direct relevant-document hit; precision@3 penalizes extra retrieved document IDs.
